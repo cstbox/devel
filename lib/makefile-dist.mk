@@ -33,12 +33,12 @@ BUILD_DIR=$(DEBPKG_NAME)
 #
 # - CSTBox libraries (Python, init,...)
 LIB_FROM?=./lib
-# - CSTBox init.d scripts
-INIT_D_FROM?=./init.d
 # - CSTBox bin scripts
 BIN_FROM?=./bin
 # - CSTBox configuration files
 ETC_FROM?=./res/etc
+# - CSTBox init.d scripts
+INIT_D_FROM?=$(ETC_FROM)/init.d
 
 # Specification of the locations where the various parts are installed on the 
 # target system.
