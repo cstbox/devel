@@ -93,11 +93,11 @@ make_build_dir:
 make_extra_dirs:
 # overriden by Makefiles to add their own directories if needed
 
-# copy_files:
+copy_files:
 # CSTBox module Makefiles must define the copy_files rule and specify what 
 # must be copied by assembling pre-defined rules as dependencies. 
 # If no action other than pre-defined ones is needed, the rule can left empty. 
-# It some other copy or action is neede, just put them in the rule content.
+# It some other copy or action is needed, just put them in the rule content.
 #
 # Note that DEBIAN package stuff is already included in the 
 # prepare phase definition.
