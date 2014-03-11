@@ -65,6 +65,8 @@ SUPPORT_PACKAGES_INSTALL_DIR=usr/lib/python$(PYTHON_VERSION)/dist-packages
 
 # - CSTBox Python package directory
 CSTBOX_PACKAGES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/python/
+# - CSTBox Java archives
+CSTBOX_JARS_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/java/
 # - CSTBox binaries directory
 CSTBOX_BINARIES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/bin
 
@@ -120,16 +122,14 @@ copy_bin_files:
 	    $(BIN_FROM)/ $(BUILD_DIR)/$(CSTBOX_INSTALL_DIR)/bin
 
 copy_python_files:
-	@echo '------ copying pyCSTBox Python libray files...'
+	@echo '------ copying Python component files ...'
 	mkdir -p \
 	    $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR) 
 # filter detail:
 # - -s_*/.* : exclude all hidden files from being sent wherever they are
-# - -s_*/x2dtools : exclude X2D tools sub-dirs
 # - -s_*/attic : exclude deprecated stuff (stored in 'attic' directories)
 	$(RSYNC) \
 	    --filter "-s_*/.*" \
-	    --filter "-s_*/x2dtools" \
 	    --filter "-s_*/attic" \
 	    --include "*/" \
 	    --include "*.py" \
@@ -142,8 +142,6 @@ copy_python_files:
 	    --include "*.jpeg" \
 	    --include "*.gif" \
 	    --include "*.mo" \
-	    --include "devcfg.d/**/*" \
-	    --include "devcfg.d/*" \
 	    --include "MANIFEST" \
 	    --exclude "*" \
 	    $(LIB_FROM)/python/pycstbox $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)
@@ -155,6 +153,36 @@ copy_python_support_pkgs:
 	$(RSYNC) \
 	    --filter "-s_*/.*" \
 	    $(LIB_FROM)/python/dist-packages/ $(BUILD_DIR)/$(SUPPORT_PACKAGES_INSTALL_DIR)
+
+copy_jar_files:
+	@echo '------ copying Java component files ...'
+	mkdir -p \
+	    $(BUILD_DIR)/$(CSTBOX_JARS_INSTALL_DIR) 
+# filter detail:
+# - -s_*/.* : exclude all hidden files from being sent wherever they are
+# - -s_*/attic : exclude deprecated stuff (stored in 'attic' directories)
+	$(RSYNC) \
+	    --filter "-s_*/.*" \
+	    --filter "-s_*/attic" \
+	    --include "*/" \
+	    --include "*.jar" \
+	    --exclude "*" \
+	    $(LIB_FROM)/java $(BUILD_DIR)/$(CSTBOX_JARS_INSTALL_DIR)
+
+copy_devices_metadata_files:
+	@echo '------ copying devices metadata files ...'
+	mkdir -p \
+	    $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR) 
+# filter detail:
+# - -s_*/.* : exclude all hidden files from being sent wherever they are
+# - -s_*/attic : exclude deprecated stuff (stored in 'attic' directories)
+	$(RSYNC) \
+	    --filter "-s_*/.*" \
+	    --filter "-s_*/attic" \
+	    --include "devcfg.d/**/*" \
+	    --include "devcfg.d/*" \
+	    --exclude "*" \
+	    $(LIB_FROM)/python/pycstbox $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)
 
 
 copy_init_shared_files:
