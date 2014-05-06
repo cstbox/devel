@@ -59,7 +59,16 @@ PROFILE_D_INSTALL_DIR=etc/profile.d
 # - location of per package logrotate settings
 LOGROTATE_D_INSTALL_DIR=etc/logrotate.d
 # - location of non CSTBox Python packages
-SUPPORT_PACKAGES_INSTALL_DIR=usr/lib/python$(PYTHON_VERSION)/dist-packages
+#   There are 2 options here:
+#   - install them in the Python system wide location
+#   - install them under the CSTBox area
+#   Both options will work the same, the later one having the advantage to leave
+#   system installation untouched, and is thus seleted by default.
+#   Just uncomment the second assignment to install packages in Python system
+#   wide location.
+SUPPORT_PACKAGES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/python
+# Uncomment next line to install external Python dependencies in the system wide location
+#SUPPORT_PACKAGES_INSTALL_DIR=usr/lib/python$(PYTHON_VERSION)/dist-packages
 
 # Computed locations
 
@@ -126,11 +135,11 @@ copy_python_files:
 	mkdir -p \
 	    $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR) 
 # filter detail:
-# - -s_*/.* : exclude all hidden files from being sent wherever they are
-# - -s_*/attic : exclude deprecated stuff (stored in 'attic' directories)
+# - -s */.* : exclude all hidden files from being sent wherever they are
+# - -s */attic : exclude deprecated stuff (stored in 'attic' directories)
 	$(RSYNC) \
-	    --filter "-s_*/.*" \
-	    --filter "-s_*/attic" \
+	    --filter "-s */.*" \
+	    --filter "-s */attic" \
 	    --include "*/" \
 	    --include "*.py" \
 	    --include "*.html" \
@@ -146,8 +155,23 @@ copy_python_files:
 	    --exclude "*" \
 	    $(LIB_FROM)/python/pycstbox $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)
 
+# remove the dummy root level __init__.py for packages other than core
+#
+# This file is here so that IDEs and tools can resolve the names when an extension
+# package is manipulated outside the global pyCSTBox library. It must not be copied in 
+# the distribution package, otherwise it will override the pyCSTBox library one and
+# break lots of things, since this one is NOT empty)
+#
+# NOTE: it would be cleaner to find a way to exclude it from the above rsync, but I failed :/
+#       Anyway the hereafter "if" would be here even in this case, since required for adding
+#       the core package __init__ module.
+	@if [ "$(MODULE_NAME)" != "core" ] ; then \
+	    echo "------ removing 'dev tools compliance' __init__.py" ;\
+	    rm -f $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)/pycstbox/__init__.py ;\
+	fi
+
 copy_python_support_pkgs:
-	@echo '------ copying addition Python support packages...'
+	@echo '------ copying additional Python support packages...'
 	mkdir -p \
 	    $(BUILD_DIR)/$(SUPPORT_PACKAGES_INSTALL_DIR) 
 	$(RSYNC) \
