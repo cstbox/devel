@@ -60,13 +60,13 @@ PROFILE_D_INSTALL_DIR=etc/profile.d
 LOGROTATE_D_INSTALL_DIR=etc/logrotate.d
 # - location of non CSTBox Python packages
 #   There are 2 options here:
-#   - install them in the Python system wide location
 #   - install them under the CSTBox area
-#   Both options will work the same, the later one having the advantage to leave
+#   - install them in the Python system wide location
+#   Both options will work the same, the first one having the advantage to leave
 #   system installation untouched, and is thus seleted by default.
-#   Just uncomment the second assignment to install packages in Python system
-#   wide location.
-SUPPORT_PACKAGES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/python
+#   CAUTION: check that the path used here is included in the PYTHONPATH setting
+#            contained in /etc/cstbox/setenv
+SUPPORT_PACKAGES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/deps/python
 # Uncomment next line to install external Python dependencies in the system wide location
 #SUPPORT_PACKAGES_INSTALL_DIR=usr/lib/python$(PYTHON_VERSION)/dist-packages
 
@@ -79,8 +79,10 @@ CSTBOX_JARS_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/java/
 # - CSTBox binaries directory
 CSTBOX_BINARIES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/bin
 
-#RSYNC=rsync -av
-RSYNC=rsync -Ca
+#RSYNC_VERBOSE=-v
+RSYNC=rsync -Ca --prune-empty-dirs $(RSYNC_VERBOSE)
+
+rm_devel_file = \rm $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)/pycstbox/$(1)
 
 dist: prepare
 	@echo '------ creating Debian package...'
@@ -167,7 +169,7 @@ copy_python_files:
 #       the core package __init__ module.
 	@if [ "$(MODULE_NAME)" != "core" ] ; then \
 	    echo "------ removing 'dev tools compliance' __init__.py" ;\
-	    rm -f $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)/pycstbox/__init__.py ;\
+	    \rm -f $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)/pycstbox/__init__.py ;\
 	fi
 
 copy_python_support_pkgs:
@@ -176,7 +178,7 @@ copy_python_support_pkgs:
 	    $(BUILD_DIR)/$(SUPPORT_PACKAGES_INSTALL_DIR) 
 	$(RSYNC) \
 	    --filter "-s_*/.*" \
-	    $(LIB_FROM)/python/dist-packages/ $(BUILD_DIR)/$(SUPPORT_PACKAGES_INSTALL_DIR)
+	    $(LIB_FROM)/python/deps/ $(BUILD_DIR)/$(SUPPORT_PACKAGES_INSTALL_DIR)
 
 copy_jar_files:
 	@echo '------ copying Java component files ...'
@@ -191,7 +193,7 @@ copy_jar_files:
 	    --include "*/" \
 	    --include "*.jar" \
 	    --exclude "*" \
-	    $(LIB_FROM)/java $(BUILD_DIR)/$(CSTBOX_JARS_INSTALL_DIR)
+	    $(LIB_FROM)/java/ $(BUILD_DIR)/$(CSTBOX_JARS_INSTALL_DIR)
 
 copy_devices_metadata_files:
 	@echo '------ copying devices metadata files ...'
@@ -205,7 +207,6 @@ copy_devices_metadata_files:
 	    --filter "-s_*/attic" \
 	    --include "devcfg.d/**/*" \
 	    --include "devcfg.d/*" \
-	    --exclude "*" \
 	    $(LIB_FROM)/python/pycstbox $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)
 
 
@@ -239,17 +240,19 @@ check_metadata_files:
 	@echo '----- checking metadata files...'
 	@for f in $$(find lib/python/pycstbox/devcfg.d/ -type f) ; do echo $$f ; cat $$f | python -mjson.tool > /dev/null || exit 1 ; done
 
-upload: dist
-	@if [ -z "$(CBX_REMOTE)" ] ; then \
-		echo "*** CBX_REMOTE must be set to target CSTBox host name or IP" ;\
+upload: $(DEBPKG_NAME).deb
+	@if [ -z "$(CBX_DEPLOY_PATH)" ] ; then \
+		echo "*** CBX_DEPLOY_PATH must be set to the path where packages must be deployed" ;\
 		exit 1 ;\
 	fi
-	@echo "----- uploading $(DEBPKG_NAME).deb to $(CBX_REMOTE)"
-	scp $(DEBPKG_NAME).deb $(CBX_REMOTE): 
+	@echo "----- uploading $(DEBPKG_NAME).deb to $(CBX_DEPLOY_PATH)"
+	rsync -av $(DEBPKG_NAME).deb $(CBX_DEPLOY_PATH)$(DEBPKG_NAME).deb 
+
+deploy: upload
 
 clean:
 	@echo '------ cleaning all...'
-	rm -f $(DEBPKG_NAME).deb 
-	rm -rf $(BUILD_DIR) 
+	\rm -f $(DEBPKG_NAME).deb 
+	\rm -rf $(BUILD_DIR) 
 
-.PHONY: i18n dist css clean
+.PHONY: i18n dist deploy css clean
