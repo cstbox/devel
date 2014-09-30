@@ -82,8 +82,6 @@ CSTBOX_BINARIES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/bin
 #RSYNC_VERBOSE=-v
 RSYNC=rsync -Ca --prune-empty-dirs $(RSYNC_VERBOSE)
 
-rm_devel_file = \rm $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)/pycstbox/$(1)
-
 dist: prepare
 	@echo '------ creating Debian package...'
 	PKG=$(DEBPKG_NAME)$(SUFFIX).deb
@@ -104,7 +102,7 @@ make_build_dir:
 	mkdir -p $(BUILD_DIR)
 
 make_extra_dirs:
-# overriden by Makefiles to add their own directories if needed
+# overridden by Makefiles to add their own directories if needed
 
 copy_files:
 # CSTBox module Makefiles must define the copy_files rule and specify what 
@@ -157,20 +155,23 @@ copy_python_files:
 	    --exclude "*" \
 	    $(LIB_FROM)/python/pycstbox $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)
 
-# remove the dummy root level __init__.py for packages other than core
+# Remove extra __init__.py used to mark merged packages in the IDE.
 #
-# This file is here so that IDEs and tools can resolve the names when an extension
-# package is manipulated outside the global pyCSTBox library. It must not be copied in 
-# the distribution package, otherwise it will override the pyCSTBox library one and
-# break lots of things, since this one is NOT empty)
+# Projects can add modules to the packages defined by the core architecture, for
+# instance when they provide plugins or alike. For the IDE to be able to resolve
+# symbols when working on these projects, we need to add the package marker __init__
+# file in their source tree. However, these files must not be copied to the distributed
+# content, since they could overwrite non-empty __init__ file which are part of the
+# core distribution.
 #
-# NOTE: it would be cleaner to find a way to exclude it from the above rsync, but I failed :/
-#       Anyway the hereafter "if" would be here even in this case, since required for adding
-#       the core package __init__ module.
-	@if [ "$(MODULE_NAME)" != "core" ] ; then \
-	    echo "------ removing 'dev tools compliance' __init__.py" ;\
-	    \rm -f $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)/pycstbox/__init__.py ;\
-	fi
+# We thus need to clean them from the build tree before the package is generated.
+#
+# NOTE: it would be cleaner to find a way to exclude them from the above rsync,
+# but since the rules can be content based, this is not feasible. By the way, doing this
+# this way allow to perform any complex processing here.
+
+	@echo "------ removing 'IDE compliance' __init__.py"
+	for f in $$(grep -R -l EXCLUDE_FROM_DIST $(BUILD_DIR)) ; do \rm $$f ; done
 
 copy_python_support_pkgs:
 	@echo '------ copying additional Python support packages...'
@@ -250,9 +251,14 @@ upload: $(DEBPKG_NAME).deb
 
 deploy: upload
 
-clean:
-	@echo '------ cleaning all...'
-	\rm -f $(DEBPKG_NAME).deb 
-	\rm -rf $(BUILD_DIR) 
+clean_build:
+	@echo '------ cleaning build tree...'
+	\rm -rf $(BUILD_DIR)
 
-.PHONY: i18n dist deploy css clean
+clean_deb:
+	@echo '------ cleaning Debian package...'
+	\rm -f $(DEBPKG_NAME).deb
+
+clean: clean_build clean_deb
+
+.PHONY: i18n dist deploy css clean clean_build clean_deb
