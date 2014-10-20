@@ -15,6 +15,7 @@ endif
 VERSION?=$(shell grep -e '^Version:' DEBIAN/control | cut -d' ' -f2 | tr -d [:blank:])
 
 DEBPKG_NAME?=cstbox-$(MODULE_NAME)_$(VERSION)_all
+DEBPKG_LINK?=cstbox-$(MODULE_NAME).deb
 
 # version status (stable or not)
 STABLE?=1
@@ -23,6 +24,8 @@ SUFFIX=
 else
 SUFFIX=-unstable
 endif
+
+DEBPKG_FILENAME=$(DEBPKG_NAME)$(SUFFIX).deb
 
 # build directory location
 BUILD_DIR=$(DEBPKG_NAME)
@@ -82,10 +85,15 @@ CSTBOX_BINARIES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/bin
 #RSYNC_VERBOSE=-v
 RSYNC=rsync -Ca --prune-empty-dirs $(RSYNC_VERBOSE)
 
+# JSON syntax checking
+json_check = python -c "import json;json.load(file('$(1)'))"
+
+
 dist: prepare
 	@echo '------ creating Debian package...'
-	PKG=$(DEBPKG_NAME)$(SUFFIX).deb
-	fakeroot dpkg --build $(BUILD_DIR) $(PKG) 
+	fakeroot dpkg --build $(BUILD_DIR) $(DEBPKG_FILENAME)
+	\rm -f $(DEBPKG_LINK)
+	ln -s $(DEBPKG_FILENAME) $(DEBPKG_LINK) 
 
 prepare: i18n make_build_dir make_extra_dirs copy_dpkg_build_files copy_files 
 
@@ -257,7 +265,7 @@ clean_build:
 
 clean_deb:
 	@echo '------ cleaning Debian package...'
-	\rm -f $(DEBPKG_NAME).deb
+	\rm -f $(DEBPKG_NAME).deb $(DEBPKG_LINK)
 
 clean: clean_build clean_deb
 
