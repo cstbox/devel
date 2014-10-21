@@ -7,10 +7,13 @@ import sys
 import shutil
 import argparse
 import subprocess
+import hashlib
+import binascii
 
 PACKAGES = None
 
-STATUS_DIR = './status'
+STATUS_DIR_ROOT = './status'
+DEPLOY_PATH_STORE = '.deploy_path'
 
 
 class CTerm:
@@ -79,11 +82,18 @@ except KeyError as e:
     )
     sys.exit(1)
 
+else:
+    m = hashlib.md5()
+    m.update(CBX_DEPLOY_PATH)
+    STATUS_DIR = os.path.join(STATUS_DIR_ROOT, binascii.hexlify(m.digest()))
+
 
 def do_init(args):
     CTerm.header('initializing')
     if not os.path.exists(STATUS_DIR):
         os.mkdir(STATUS_DIR)
+        with file(os.path.join(STATUS_DIR, DEPLOY_PATH_STORE), 'wt') as f:
+            f.write(CBX_DEPLOY_PATH)
         CTerm.success('status directory created')
 
 
@@ -162,7 +172,7 @@ def do_status(args):
     try:
         CTerm.out(STATUS_FORMAT % ("Package", "Last deployed"), CTerm.BLUE)
         CTerm.out(HEADER_SEP, CTerm.BLUE)
-        for name in sorted(os.listdir(STATUS_DIR)):
+        for name in sorted((fname for fname in os.listdir(STATUS_DIR) if fname != DEPLOY_PATH_STORE)):
             mtime = os.path.getmtime(os.path.join(STATUS_DIR, name))
             print(STATUS_FORMAT % (name, time.ctime(mtime)))
     except OSError:
