@@ -21,6 +21,7 @@ class CTerm:
     GREEN = '\033[0;32m'
     YELLOW = '\033[0;33m'
     BLUE = '\033[0;34m'
+    CYAN = '\033[0;36m'
     WHITE = '\033[0;37m'
     HIRED = '\033[1;31m'
     HIGREEN = '\033[1;32m'
@@ -31,7 +32,7 @@ class CTerm:
     RESET = '\033[0m'
 
     HEADER = HIWHITE
-    INFO = BLUE
+    INFO = CYAN
     SUCCESS = GREEN
     WARNING = YELLOW
     FAIL = RED
@@ -167,16 +168,32 @@ def do_clean(args):
 
 
 def do_status(args):
-    STATUS_FORMAT = "%30s %s"
+    STATUS_FORMAT = CTerm.WHITE + "%30s " + CTerm.GREEN + "%s" + CTerm.RESET
     HEADER_SEP = '-'*30 + ' ' + '-'*24
+    HEADER_FORMAT = "%30s %s"
     try:
-        CTerm.out(STATUS_FORMAT % ("Package", "Last deployed"), CTerm.BLUE)
-        CTerm.out(HEADER_SEP, CTerm.BLUE)
+        CTerm.out(HEADER_FORMAT % ("Package", "Last deployed"), CTerm.WHITE)
+        CTerm.out(HEADER_SEP, CTerm.WHITE)
         for name in sorted((fname for fname in os.listdir(STATUS_DIR) if fname != DEPLOY_PATH_STORE)):
             mtime = os.path.getmtime(os.path.join(STATUS_DIR, name))
             print(STATUS_FORMAT % (name, time.ctime(mtime)))
     except OSError:
         CTerm.warn("no status available")
+
+
+def do_info(args):
+    def label(s):
+        print(CTerm.BLUE + s + ': ' + CTerm.RESET)
+
+    def value(s):
+        print('   ' + s)
+
+    label("Current deployment path")
+    value(CBX_DEPLOY_PATH)
+    label("Application packages list")
+    for pname in sorted(PACKAGES):
+        value(pname)
+    print
 
 
 if __name__ == '__main__':
@@ -209,11 +226,16 @@ if __name__ == '__main__':
     parser_status = subparsers.add_parser('status')
     parser_status.set_defaults(handler=do_status)
 
+    parser_status = subparsers.add_parser('info')
+    parser_status.set_defaults(handler=do_info)
+
     _args = parser.parse_args()
 
     try:
-        with file(_args.config, 'rt') as f:
-            PACKAGES = [s.strip() for s in f.readlines()]
+        with file(_args.config, 'rt') as _f:
+            PACKAGES = [s for s in (
+                s.strip() for s in _f.readlines()
+            ) if not s.startswith('#')]
 
     except IOError as e:
         CTerm.error(e.message)
