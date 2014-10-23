@@ -188,8 +188,15 @@ def do_info(args):
     def value(s):
         print('   ' + s)
 
-    label("Current deployment path")
-    value(CBX_DEPLOY_PATH)
+    label("Deployment path ('>' = current")
+    for name in os.listdir(STATUS_DIR_ROOT):
+        _path = os.path.join(STATUS_DIR_ROOT, name)
+        if os.path.isdir(_path):
+            deploy_path_store = os.path.join(_path, DEPLOY_PATH_STORE)
+            if os.path.exists(deploy_path_store):
+                deploy_path = file(deploy_path_store, 'rt').readline()
+                marker = '>' if deploy_path == CBX_DEPLOY_PATH else '-'
+                value(marker + ' ' + deploy_path)
     label("Application packages list")
     for pname in sorted(PACKAGES):
         value(pname)
@@ -231,6 +238,11 @@ if __name__ == '__main__':
 
     _args = parser.parse_args()
 
+    if not os.path.exists(_args.config):
+        CTerm.error("We are not at the right place : no file '%s' here." %
+                    _args.config)
+        sys.exit(2)
+
     try:
         with file(_args.config, 'rt') as _f:
             PACKAGES = [s for s in (
@@ -238,13 +250,13 @@ if __name__ == '__main__':
             ) if not s.startswith('#')]
 
     except IOError as e:
-        CTerm.error(e.message)
+        CTerm.error(e)
         sys.exit(1)
 
     else:
         try:
             _args.handler(_args)
         except Exception as e: #pylint: disable=W0703
-            CTerm.error(e.message)
+            CTerm.error(e)
             sys.exit(1)
 
