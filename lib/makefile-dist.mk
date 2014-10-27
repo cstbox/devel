@@ -83,7 +83,7 @@ CSTBOX_JARS_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/java/
 CSTBOX_BINARIES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/bin
 
 #RSYNC_VERBOSE=-v
-RSYNC=rsync -Ca --prune-empty-dirs $(RSYNC_VERBOSE)
+RSYNC=rsync -Ca --prune-empty-dirs -L $(RSYNC_VERBOSE)
 
 # JSON syntax checking
 json_check = python -c "import json;json.load(file('$(1)'))"
