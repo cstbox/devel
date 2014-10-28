@@ -61,6 +61,8 @@ INIT_D_INSTALL_DIR=etc/init.d
 PROFILE_D_INSTALL_DIR=etc/profile.d
 # - location of per package logrotate settings
 LOGROTATE_D_INSTALL_DIR=etc/logrotate.d
+# - location of per package bash_completion settings
+BASH_COMPLETION_D_INSTALL_DIR=etc/bash_completion.d
 # - location of non CSTBox Python packages
 #   There are 2 options here:
 #   - install them under the CSTBox area
