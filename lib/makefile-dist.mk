@@ -79,8 +79,8 @@ SUPPORT_PACKAGES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/deps/python
 
 # - CSTBox Python package directory
 CSTBOX_PACKAGES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/python/
-# - CSTBox Java archives
-CSTBOX_JARS_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/java/
+# - CSTBox Java libraries
+CSTBOX_JAVA_LIBS_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/java/
 # - CSTBox binaries directory
 CSTBOX_BINARIES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/bin
 
@@ -191,10 +191,17 @@ copy_python_support_pkgs:
 	    --filter "-s_*/.*" \
 	    $(LIB_FROM)/python/deps/ $(BUILD_DIR)/$(SUPPORT_PACKAGES_INSTALL_DIR)
 
-copy_jar_files:
-	@echo '------ copying Java component files ...'
+check_java_project_root:
+	@if [ -z "$(JAVA_PROJECT_ROOT)" ] ; then \
+	echo '------ checking Java pre-requisites...' ;\
+	echo "*** JAVA_PROJECT_ROOT is not defined" ;\
+	false ;\
+	fi
+
+copy_java_libraries: check_java_project_root
+	@echo '------ copying Java libraries...'
 	mkdir -p \
-	    $(BUILD_DIR)/$(CSTBOX_JARS_INSTALL_DIR) 
+	    $(BUILD_DIR)/$(CSTBOX_JAVA_LIBS_INSTALL_DIR) 
 # filter detail:
 # - -s_*/.* : exclude all hidden files from being sent wherever they are
 # - -s_*/attic : exclude deprecated stuff (stored in 'attic' directories)
@@ -204,7 +211,17 @@ copy_jar_files:
 	    --include "*/" \
 	    --include "*.jar" \
 	    --exclude "*" \
-	    $(LIB_FROM)/java/ $(BUILD_DIR)/$(CSTBOX_JARS_INSTALL_DIR)
+	    $(JAVA_PROJECT_ROOT)/lib/ $(BUILD_DIR)/$(CSTBOX_JAVA_LIBS_INSTALL_DIR)
+
+copy_java_executables: check_java_project_root
+	@echo '------ copying Java executables...'
+	$(RSYNC) \
+	    --filter "-s_*/.*" \
+	    --filter "-s_*/attic" \
+	    --include "*/" \
+	    --include "*.jar" \
+	    --exclude "*" \
+	    $(JAVA_PROJECT_ROOT)/bin/ $(BUILD_DIR)/$(CSTBOX_BINARIES_INSTALL_DIR)
 
 copy_devices_metadata_files:
 	@echo '------ copying devices metadata files ...'
@@ -271,4 +288,4 @@ clean_deb:
 
 clean: clean_build clean_deb
 
-.PHONY: i18n dist deploy css clean clean_build clean_deb
+.PHONY: i18n dist deploy css clean clean_build clean_deb check_java_project_root
