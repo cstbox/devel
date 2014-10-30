@@ -198,7 +198,12 @@ check_java_project_root:
 	false ;\
 	fi
 
-copy_java_libraries: check_java_project_root
+# targets to be overridden if Java component involved
+build_java_libs:
+
+build_java_executable:
+
+copy_java_libraries: check_java_project_root build_java_libs
 	@echo '------ copying Java libraries...'
 	mkdir -p \
 	    $(BUILD_DIR)/$(CSTBOX_JAVA_LIBS_INSTALL_DIR) 
@@ -213,7 +218,7 @@ copy_java_libraries: check_java_project_root
 	    --exclude "*" \
 	    $(JAVA_PROJECT_ROOT)/lib/ $(BUILD_DIR)/$(CSTBOX_JAVA_LIBS_INSTALL_DIR)
 
-copy_java_executables: check_java_project_root
+copy_java_executables: check_java_project_root build_java_executable
 	@echo '------ copying Java executables...'
 	$(RSYNC) \
 	    --filter "-s_*/.*" \
