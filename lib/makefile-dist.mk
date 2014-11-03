@@ -203,6 +203,8 @@ build_java_libs:
 
 build_java_executable:
 
+clean_java:
+
 copy_java_libraries: check_java_project_root build_java_libs
 	@echo '------ copying Java libraries...'
 	mkdir -p \
@@ -291,6 +293,6 @@ clean_deb:
 	@echo '------ cleaning Debian package...'
 	\rm -f $(DEBPKG_NAME).deb $(DEBPKG_LINK)
 
-clean: clean_build clean_deb
+clean: clean_build clean_deb clean_java
 
 .PHONY: i18n dist deploy css clean clean_build clean_deb check_java_project_root
