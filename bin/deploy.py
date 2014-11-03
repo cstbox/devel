@@ -168,6 +168,8 @@ def do_clean(args):
 
 
 def do_status(args):
+    print(CTerm.BLUE + 'Current target: ' + CTerm.RESET + CBX_DEPLOY_PATH)
+
     STATUS_FORMAT = CTerm.WHITE + "%30s " + CTerm.GREEN + "%s" + CTerm.RESET
     HEADER_SEP = '-'*30 + ' ' + '-'*24
     HEADER_FORMAT = "%30s %s"
@@ -181,27 +183,35 @@ def do_status(args):
         CTerm.warn("no status available")
 
 
-def do_info(args):
-    def label(s):
-        print(CTerm.BLUE + s + ': ' + CTerm.RESET)
+def label(s):
+    print(CTerm.BLUE + s + ': ' + CTerm.RESET)
 
-    def value(s):
-        print('   ' + s)
 
-    label("Deployment path ('>' = current")
+def value(s):
+    print('   ' + s + CTerm.RESET)
+
+
+def do_targets(args):
+    label("Deployment targets ('>' = current)")
     for name in os.listdir(STATUS_DIR_ROOT):
         _path = os.path.join(STATUS_DIR_ROOT, name)
         if os.path.isdir(_path):
             deploy_path_store = os.path.join(_path, DEPLOY_PATH_STORE)
             if os.path.exists(deploy_path_store):
                 deploy_path = file(deploy_path_store, 'rt').readline()
-                marker = '>' if deploy_path == CBX_DEPLOY_PATH else '-'
+                marker = '>' if deploy_path == CBX_DEPLOY_PATH else CTerm.GREEN + '-'
                 value(marker + ' ' + deploy_path)
+
+
+def do_packages(args):
     label("Application packages list")
     for pname in sorted(PACKAGES):
         value(pname)
-    print
 
+
+def do_info(args):
+    do_targets(args)
+    do_packages(args)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -214,26 +224,41 @@ if __name__ == '__main__':
 
     subparsers = parser.add_subparsers()
 
-    parser_all = subparsers.add_parser('all')
+    parser_all = subparsers.add_parser('all',
+                                       help='deploys all packages of the configuration')
     parser_all.set_defaults(handler=do_all)
 
-    parser_package = subparsers.add_parser('package')
+    parser_package = subparsers.add_parser('package',
+                                           help='deploys a single package')
     parser_package.add_argument(
         'package',
-        choices=PACKAGES
+        choices=PACKAGES,
+        help='name of the package to be deployed'
     )
     parser_package.set_defaults(handler=do_package)
 
-    parser_init = subparsers.add_parser('init')
+    parser_packages = subparsers.add_parser('packages',
+                                           help='displays the configuration packages list')
+    parser_packages.set_defaults(handler=do_packages)
+
+    parser_targets = subparsers.add_parser('targets',
+                                           help='displays the list of know targets')
+    parser_targets.set_defaults(handler=do_targets)
+
+    parser_init = subparsers.add_parser('init',
+                                        help='initializes the context for the current deployment target')
     parser_init.set_defaults(handler=do_init)
 
-    parser_clean = subparsers.add_parser('clean')
+    parser_clean = subparsers.add_parser('clean',
+                                         help='deletes all status information for the current deployment target')
     parser_clean.set_defaults(handler=do_clean)
 
-    parser_status = subparsers.add_parser('status')
+    parser_status = subparsers.add_parser('status',
+                                          help="displays the deployment status of the current target")
     parser_status.set_defaults(handler=do_status)
 
-    parser_status = subparsers.add_parser('info')
+    parser_status = subparsers.add_parser('info',
+                                          help="displays information about the context")
     parser_status.set_defaults(handler=do_info)
 
     _args = parser.parse_args()
