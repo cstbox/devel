@@ -117,7 +117,7 @@ def _do_package(args):
     if not os.path.exists(package_root):
         raise ValueError("package directory not found : %s" % package_root)
 
-    package_link = os.path.join(package_root, "cstbox-%s.deb" %  args.package)
+    package_link = os.path.join(package_root, "cstbox-%s.deb" % args.package)
 
     status_file = os.path.join(STATUS_DIR, args.package)
     try:
@@ -170,17 +170,33 @@ def do_clean(args):
 def do_status(args):
     print(CTerm.BLUE + 'Current target: ' + CTerm.RESET + CBX_DEPLOY_PATH)
 
-    STATUS_FORMAT = CTerm.WHITE + "%30s " + CTerm.GREEN + "%s" + CTerm.RESET
-    HEADER_SEP = '-'*30 + ' ' + '-'*24
-    HEADER_FORMAT = "%30s %s"
+    STATUS_FORMAT = CTerm.WHITE + "%30s %s%24s %s%24s" + CTerm.RESET
+    HEADER_SEP = '-'*30 + ' ' + '-'*24 + ' ' + '-'*24
+    HEADER_FORMAT = "%30s %24s %24s"
     try:
-        CTerm.out(HEADER_FORMAT % ("Package", "Last deployed"), CTerm.WHITE)
+        CTerm.out(HEADER_FORMAT % ("Package", "Last updated", "Last deployed"), CTerm.WHITE)
         CTerm.out(HEADER_SEP, CTerm.WHITE)
         for name in sorted((fname for fname in os.listdir(STATUS_DIR) if fname != DEPLOY_PATH_STORE)):
-            mtime = os.path.getmtime(os.path.join(STATUS_DIR, name))
-            print(STATUS_FORMAT % (name, time.ctime(mtime)))
-    except OSError:
-        CTerm.warn("no status available")
+            last_deployed = os.path.getmtime(os.path.join(STATUS_DIR, name))
+
+            pkg_link = os.path.join(CBX_GIT, name, "cstbox-%s.deb" % name)
+            if not os.path.exists(pkg_link):
+                pkg_version = None
+                pkg_col = CTerm.RED
+                deploy_col = CTerm.BLUE
+            else:
+                pkg_file = os.readlink(pkg_link)
+                pkg_version = os.path.getmtime(os.path.join(os.path.dirname(pkg_link), pkg_file))
+                if pkg_version <= last_deployed:
+                    pkg_col = CTerm.BLUE
+                    deploy_col = CTerm.GREEN
+                else:
+                    deploy_col = pkg_col = CTerm.RED
+
+            print(STATUS_FORMAT % (name, pkg_col, time.ctime(pkg_version) if pkg_version else 'n/a', deploy_col, time.ctime(last_deployed)))
+
+    except OSError as err:
+        CTerm.warn("no status available (%s)" % err)
 
 
 def label(s):
@@ -191,16 +207,47 @@ def value(s):
     print('   ' + s + CTerm.RESET)
 
 
-def do_targets(args):
-    label("Deployment targets ('>' = current)")
+def _display_targets(menu=False):
+    targets = []
     for name in os.listdir(STATUS_DIR_ROOT):
         _path = os.path.join(STATUS_DIR_ROOT, name)
         if os.path.isdir(_path):
             deploy_path_store = os.path.join(_path, DEPLOY_PATH_STORE)
             if os.path.exists(deploy_path_store):
                 deploy_path = file(deploy_path_store, 'rt').readline()
-                marker = '>' if deploy_path == CBX_DEPLOY_PATH else CTerm.GREEN + '-'
+                targets.append(deploy_path)
+                if menu:
+                    color = CTerm.WHITE if deploy_path == CBX_DEPLOY_PATH else CTerm.GREEN
+                    marker = color + "[%2d]" % len(targets)
+                else:
+                    marker = '>' if deploy_path == CBX_DEPLOY_PATH else CTerm.GREEN + '-'
                 value(marker + ' ' + deploy_path)
+
+    return targets
+
+
+def do_targets(args):
+    label("Deployment targets (highlighted = current)")
+    _display_targets()
+
+
+def do_set_target(args):
+    label("Deployment targets (highlighted = current)")
+    targets = _display_targets(menu=True)
+    user_input = raw_input("Select the id of the target to activate ([1-%d] or none to cancel) : " % len(targets)).strip()
+    if len(user_input) == 0:
+        CTerm.info("Current target left unchanged.")
+
+    else:
+        try:
+            target_num = int(user_input)
+            if not target_num - 1 in xrange(len(targets)):
+                raise ValueError()
+            CTerm.info('Execute the following statement at your bash prompt to change the deployment target : ')
+            print('export CBX_DEPLOY_PATH=' + targets[target_num - 1])
+
+        except ValueError:
+            CTerm.error("Invalid reply.")
 
 
 def do_packages(args):
@@ -244,6 +291,10 @@ if __name__ == '__main__':
     parser_targets = subparsers.add_parser('targets',
                                            help='displays the list of know targets')
     parser_targets.set_defaults(handler=do_targets)
+
+    parser_targets = subparsers.add_parser('target',
+                                           help='changes the deployment target')
+    parser_targets.set_defaults(handler=do_set_target)
 
     parser_init = subparsers.add_parser('init',
                                         help='initializes the context for the current deployment target')
