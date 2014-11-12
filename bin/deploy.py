@@ -260,6 +260,17 @@ def do_info(args):
     do_targets(args)
     do_packages(args)
 
+
+def do_ls(args):
+    for name in os.listdir(STATUS_DIR_ROOT):
+        _path = os.path.join(STATUS_DIR_ROOT, name)
+        if os.path.isdir(_path):
+            deploy_path_store = os.path.join(_path, DEPLOY_PATH_STORE)
+            if os.path.exists(deploy_path_store):
+                deploy_path = file(deploy_path_store, 'rt').readline()
+                print(CTerm.BLUE + name + CTerm.RESET + ' ' + deploy_path)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="CSTBox application optimized deployment tool."
@@ -307,6 +318,10 @@ if __name__ == '__main__':
     parser_status = subparsers.add_parser('status',
                                           help="displays the deployment status of the current target")
     parser_status.set_defaults(handler=do_status)
+
+    parser_status = subparsers.add_parser('ls',
+                                          help="human list of status directories")
+    parser_status.set_defaults(handler=do_ls)
 
     parser_status = subparsers.add_parser('info',
                                           help="displays information about the context")
