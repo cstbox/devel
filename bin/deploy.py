@@ -108,6 +108,7 @@ def do_all(args):
 
 def do_package(args):
     do_init(args)
+    _do_package(args.package)
 
 
 def _do_package(args):
