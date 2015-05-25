@@ -26,9 +26,15 @@ SUFFIX=-unstable
 endif
 
 DEBPKG_FILENAME=$(DEBPKG_NAME)$(SUFFIX).deb
+ARCH_FILENAME=$(DEBPKG_NAME)$(SUFFIX).tgz
 
 # build directory location
 BUILD_DIR=$(DEBPKG_NAME)
+
+# prepare stage customization
+# Override this in derived Makefiles to add stuff after the default prepare sequence.
+# A common use case is to add a files patch target when customizing a third party library.
+EXTRA_PREPARE_STEPS?=
 
 # Specification of the default locations where the packaged material should be picked
 # from. These variables can be overidden when invoking the make command if you choose 
@@ -97,7 +103,11 @@ dist: prepare
 	\rm -f $(DEBPKG_LINK)
 	ln -s $(DEBPKG_FILENAME) $(DEBPKG_LINK) 
 
-prepare: i18n make_build_dir make_extra_dirs copy_dpkg_build_files copy_files 
+arch: prepare
+	@echo '------ creating compressed archive...'
+	tar czf $(ARCH_FILENAME) -C $(BUILD_DIR) --exclude=DEBIAN .
+
+prepare: i18n make_build_dir make_extra_dirs copy_dpkg_build_files copy_files $(EXTRA_PREPARE_STEPS)
 
 i18n: 
 	@echo '------ compiling message files...'
@@ -271,6 +281,9 @@ copy_etc_files:
 	    --filter "-s_*/.*" \
 	    $(ETC_FROM)/cstbox/ $(BUILD_DIR)/$(ETC_CSTBOX_INSTALL_DIR)
 
+apply_patches:
+	# to be overriden for special cases (ex: patch third party libs for specific targets)
+
 check_metadata_files:
 	@echo '----- checking metadata files...'
 	@for f in $$(find lib/python/pycstbox/devcfg.d/ -type f) ; do echo $$f ; cat $$f | python -mjson.tool > /dev/null || exit 1 ; done
@@ -294,5 +307,6 @@ clean_deb:
 	\rm -f $(DEBPKG_NAME).deb $(DEBPKG_LINK)
 
 clean: clean_build clean_deb clean_java
+
 
 .PHONY: i18n dist deploy css clean clean_build clean_deb check_java_project_root
