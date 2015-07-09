@@ -92,7 +92,7 @@ else:
 def do_init(args):
     CTerm.header('initializing')
     if not os.path.exists(STATUS_DIR):
-        os.mkdir(STATUS_DIR)
+        os.makedirs(STATUS_DIR)
         with file(os.path.join(STATUS_DIR, DEPLOY_PATH_STORE), 'wt') as f:
             f.write(CBX_DEPLOY_PATH)
         CTerm.success('status directory created')
@@ -108,7 +108,7 @@ def do_all(args):
 
 def do_package(args):
     do_init(args)
-    _do_package(args.package)
+    _do_package(args)
 
 
 def _do_package(args):
@@ -337,9 +337,9 @@ if __name__ == '__main__':
 
     try:
         with file(_args.config, 'rt') as _f:
-            PACKAGES = [s for s in (
-                s.strip() for s in _f.readlines()
-            ) if not s.startswith('#')]
+            PACKAGES = [line for line in (
+                line.strip() for line in _f.readlines()
+            ) if line and not line.startswith('#')]
 
     except IOError as e:
         CTerm.error(e)
