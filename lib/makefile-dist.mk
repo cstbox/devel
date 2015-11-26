@@ -138,7 +138,7 @@ copy_files:
 
 copy_dpkg_build_files:
 	@echo '------ copying dpkg control files...'
-	$(RSYNC) DEBIAN $(BUILD_DIR)
+	$(RSYNC) --exclude="*.bak" --exclude="*.template" DEBIAN $(BUILD_DIR)
 
 copy_bin_files:
 	@echo '------ copying CSTBox scripts and binaries...'
