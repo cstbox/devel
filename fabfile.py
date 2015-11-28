@@ -102,8 +102,9 @@ def build():
 def arch():
     """ Generates a deployable archive of the package
     """
+    new_version = git_version()
     with lcd(_find_project_root()):
-        local('make arch')
+        local('VERSION=%s make arch' % new_version)
 
 
 REMOTE_TARGET_PACKAGES_DIR = "cstbox-packages/"
