@@ -16,7 +16,7 @@ pyver = sys.version_info
 
 def call_git_describe(abbrev=4):
     try:
-        p = Popen(['git', 'describe', '--abbrev=%d' % abbrev],
+        p = Popen(['git', 'describe', '--abbrev=%d' % abbrev, '--tags'],
                   stdout=PIPE, stderr=PIPE)
         p.stderr.close()
         line = p.stdout.readlines()[0]
@@ -82,3 +82,7 @@ def git_version(abbrev=4):
 
     # Finally, return the current version.
     return version
+
+
+if __name__ == '__main__':
+    print git_version()
