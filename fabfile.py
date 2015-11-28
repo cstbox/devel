@@ -78,6 +78,19 @@ def update_deb_version():
 
 
 @task
+def update__version__():
+    project_root = _find_project_root()
+    try:
+        python_pkg_version_path = file(os.path.join(project_root, 'VERSION_PY_PATH')).readlines()[0].strip()
+        version = git_version()
+        version_module_path = os.path.join(project_root, python_pkg_version_path, '__version__.py')
+        file(version_module_path, 'wt').write('version = "%s"\n' % version)
+
+    except IOError:
+        pass
+
+
+@task
 def make_deb_control():
     project_root = _find_project_root()
 
@@ -94,6 +107,7 @@ def build():
     """ Generates the Debian package
     """
     with lcd(_find_project_root()):
+        execute(update__version__)
         execute(make_deb_control)
         local('make dist')
 
@@ -104,6 +118,7 @@ def arch():
     """
     new_version = git_version()
     with lcd(_find_project_root()):
+        execute(update__version__)
         local('VERSION=%s make arch' % new_version)
 
 
