@@ -145,8 +145,9 @@ def install(name=''):
 
 REPOS_PATH = {
     'dropbox': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox/"),
-    'vagrant.tydom': os.path.join(_HERE, "ext-deltadore", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    'vagrant.wsfeed': os.path.join(_HERE, "ext-wsfeed", "vagrant", REMOTE_TARGET_PACKAGES_DIR)
+    'vagrant.tydom': os.path.join(_HERE, "app-tydom", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    'vagrant.deltadore': os.path.join(_HERE, "ext-deltadore", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    'vagrant.wsfeed': os.path.join(_HERE, "ext-wsfeed", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
 }
 
 
