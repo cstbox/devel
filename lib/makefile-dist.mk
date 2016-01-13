@@ -89,6 +89,8 @@ CSTBOX_PACKAGES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/python/
 CSTBOX_JAVA_LIBS_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/lib/java/
 # - CSTBox binaries directory
 CSTBOX_BINARIES_INSTALL_DIR=$(CSTBOX_INSTALL_DIR)/bin
+# - version info directory
+CSTBOX_PACKAGES_VERSION_DIR=$(CSTBOX_INSTALL_DIR)/version/
 
 #RSYNC_VERBOSE=-v
 RSYNC=rsync -Ca --prune-empty-dirs -L $(RSYNC_VERBOSE)
@@ -107,7 +109,7 @@ arch: prepare
 	@echo '------ creating compressed archive...'
 	tar czf $(ARCH_FILENAME) -C $(BUILD_DIR) --exclude=DEBIAN .
 
-prepare: i18n make_build_dir make_extra_dirs copy_dpkg_build_files copy_files $(EXTRA_PREPARE_STEPS)
+prepare: i18n make_build_dir make_extra_dirs copy_dpkg_build_files copy_files update_version_info $(EXTRA_PREPARE_STEPS)
 
 i18n: 
 	@echo '------ compiling message files...'
@@ -123,6 +125,11 @@ make_build_dir:
 
 make_extra_dirs:
 # overridden by Makefiles to add their own directories if needed
+
+update_version_info:
+	@echo '------ updating version info...'
+	mkdir -p $(BUILD_DIR)/$(CSTBOX_PACKAGES_VERSION_DIR)
+	echo $(VERSION) $$(date "+%Y-%m-%d %H:%M:%S") > $(BUILD_DIR)/$(CSTBOX_PACKAGES_VERSION_DIR)$(MODULE_NAME)
 
 copy_files:
 # CSTBox module Makefiles must define the copy_files rule and specify what 
@@ -282,7 +289,7 @@ copy_etc_files:
 	    $(ETC_FROM)/cstbox/ $(BUILD_DIR)/$(ETC_CSTBOX_INSTALL_DIR)
 
 apply_patches:
-	# to be overriden for special cases (ex: patch third party libs for specific targets)
+	# to be overridden for special cases (ex: patch third party libs for specific targets)
 
 check_metadata_files:
 	@echo '----- checking metadata files...'
@@ -309,4 +316,4 @@ clean_deb:
 clean: clean_build clean_deb clean_java
 
 
-.PHONY: i18n dist deploy css clean clean_build clean_deb check_java_project_root
+.PHONY: i18n dist deploy css clean clean_build clean_deb check_java_project_root update_version_info
