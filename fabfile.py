@@ -12,10 +12,21 @@ from fabric.decorators import with_settings
 from fabtools.vagrant import vagrant
 from git_version import git_version
 
-
 __author__ = 'Eric Pascual - CSTB (eric.pascual@cstb.fr)'
 
 _HERE = os.path.dirname(__file__)
+
+REMOTE_TARGET_PACKAGES_DIR = "cstbox-packages/"
+
+REPOS_PATH = {
+    'dropbox': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox/"),
+    'ppa': os.path.expanduser("~/cstbox-workspace/ppa/"),
+    'vagrant': os.path.join("vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    'vagrant.tydom': os.path.join(_HERE, "app-tydom", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    'vagrant.deltadore': os.path.join(_HERE, "ext-deltadore", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    'vagrant.wsfeed': os.path.join(_HERE, "ext-wsfeed", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+}
+
 
 env.use_ssh_config = True
 # env.hosts = ['cbx-wsd000']
@@ -56,6 +67,10 @@ def _get_package_arch_name():
     return '%s_%s_all.tgz' % (name, version)
 
 
+def _get_debian_control_path():
+    return os.path.join(_find_project_root(), 'DEBIAN', 'control')
+
+
 @task
 def update_deb_version():
     project_root = _find_project_root()
@@ -79,6 +94,7 @@ def update_deb_version():
 
 @task
 def update__version__():
+    """ Updates the __version__.py file if it exists """
     project_root = _find_project_root()
     try:
         python_pkg_version_path = file(os.path.join(project_root, 'VERSION_PY_PATH')).readlines()[0].strip()
@@ -100,29 +116,31 @@ def make_deb_control():
     template_path = control_path + '.template'
     lines = file(template_path).readlines()
     file(control_path, 'wt').writelines(''.join(lines) % {'version': new_version})
+    print(green('%s version field updated to "%s"' % (control_path, new_version)))
 
 
 @task
-def build():
+def build_deb():
     """ Generates the Debian package
     """
     with lcd(_find_project_root()):
+        if os.path.exists(os.path.join('DEBIAN', 'control.template')):
+            execute(make_deb_control)
+        else:
+            execute(update_deb_version)
+
         execute(update__version__)
-        execute(make_deb_control)
         local('make dist')
 
 
 @task
-def arch():
+def build_arch():
     """ Generates a deployable archive of the package
     """
     new_version = git_version()
     with lcd(_find_project_root()):
         execute(update__version__)
         local('VERSION=%s make arch' % new_version)
-
-
-REMOTE_TARGET_PACKAGES_DIR = "cstbox-packages/"
 
 
 @task
@@ -143,14 +161,6 @@ def install(name=''):
     sudo('service cstbox start')
 
 
-REPOS_PATH = {
-    'dropbox': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox/"),
-    'vagrant.tydom': os.path.join(_HERE, "app-tydom", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    'vagrant.deltadore': os.path.join(_HERE, "ext-deltadore", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    'vagrant.wsfeed': os.path.join(_HERE, "ext-wsfeed", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-}
-
-
 @task
 def publish(repos='vagrant'):
     """ Copies the Debian package to the repository
@@ -162,9 +172,29 @@ def publish(repos='vagrant'):
         error('no Debian package defined for this component')
     else:
         if os.path.isfile(pkg_fn):
-            local('cp -a %s %s' % (pkg_fn, REPOS_PATH[repos]))
+            try:
+                local('cp -a %s %s' % (pkg_fn, REPOS_PATH[repos]))
+            except KeyError:
+                error('repository "%s" does not exist' % repos)
         else:
-            error('Debian package %s not yet generated.' % pkg_fn)
+            error('Debian package %s not yet generated' % pkg_fn)
+
+
+@task
+def sign_deb():
+    with lcd(_find_project_root()):
+        local('dpkg-sig -k cstbox --sign builder %s' % _get_package_file_name())
+
+
+@task
+def update_ppa():
+    execute(publish, repos='ppa')
+    execute(sign_deb)
+    with lcd(REPOS_PATH['ppa']):
+        local('dpkg-scanpackages -m . /dev/null > Packages')
+        local('bzip2 -kf Packages')
+        local('apt-ftparchive release . > Release')
+        local('gpg --yes -abs -u cstbox -o Release.gpg Release')
 
 
 @hosts('tydom')
@@ -198,7 +228,7 @@ def tydom_cbx_restart():
 
 @task
 def tydom_all():
-    execute(arch)
+    execute(build_arch)
     execute(tydom_deploy)
     execute(tydom_install)
     execute(tydom_cbx_restart)
