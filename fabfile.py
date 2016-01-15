@@ -9,6 +9,7 @@ from fabric.utils import error, abort
 from fabric.colors import blue, green
 from fabric.context_managers import settings
 from fabric.decorators import with_settings
+from fabric.network import ssh
 from fabtools.vagrant import vagrant
 from git_version import git_version
 
@@ -28,8 +29,10 @@ REPOS_PATH = {
 }
 
 
+# ssh.util.log_to_file("paramiko.log", 10)
 env.use_ssh_config = True
-# env.hosts = ['cbx-wsd000']
+env.no_agent = True
+env.hosts = ['cbx-home']
 
 
 def _find_project_root():
@@ -71,6 +74,45 @@ def _get_debian_control_path():
     return os.path.join(_find_project_root(), 'DEBIAN', 'control')
 
 
+def _version_fields(version):
+    return tuple((int(s) for s in version.split('.')[:3]))
+
+
+def inc_version(version, inc_major=False, inc_minor=False, inc_build=True):
+    name, version = _get_package_name_and_version()
+    major, minor, build = _version_fields(version)
+    if inc_major:
+        major += 1
+        minor = build = 0
+    elif inc_minor:
+        minor += 1
+        build = 0
+    elif inc_build:
+        build += 1
+    else:
+        return version
+
+    return '.'.join((str(n) for n in (major, minor, build)))
+
+
+@task
+def inc_version_build():
+    name, version = _get_package_name_and_version()
+    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(version)})
+
+
+@task
+def inc_version_minor():
+    name, version = _get_package_name_and_version()
+    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(version, inc_minor=True)})
+
+
+@task
+def inc_version_major():
+    name, version = _get_package_name_and_version()
+    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(version, inc_major=True)})
+
+
 @task
 def update_deb_version():
     project_root = _find_project_root()
@@ -108,6 +150,7 @@ def update__version__():
 
 @task
 def make_deb_control():
+    """ Generates de DEBIAN/control file """
     project_root = _find_project_root()
 
     new_version = git_version()
@@ -130,7 +173,7 @@ def build_deb():
             execute(update_deb_version)
 
         execute(update__version__)
-        local('make dist')
+        local('make clean_build  dist')
 
 
 @task
@@ -140,7 +183,7 @@ def build_arch():
     new_version = git_version()
     with lcd(_find_project_root()):
         execute(update__version__)
-        local('VERSION=%s make arch' % new_version)
+        local('VERSION=%s make clean_build arch' % new_version)
 
 
 @task
@@ -162,7 +205,7 @@ def install(name=''):
 
 
 @task
-def publish(repos='vagrant'):
+def publish(to='vagrant'):
     """ Copies the Debian package to the repository
     """
     try:
@@ -173,9 +216,9 @@ def publish(repos='vagrant'):
     else:
         if os.path.isfile(pkg_fn):
             try:
-                local('cp -a %s %s' % (pkg_fn, REPOS_PATH[repos]))
+                local('cp -a %s %s' % (pkg_fn, REPOS_PATH[to]))
             except KeyError:
-                error('repository "%s" does not exist' % repos)
+                error('repository "%s" does not exist' % to)
         else:
             error('Debian package %s not yet generated' % pkg_fn)
 
@@ -186,12 +229,15 @@ def sign_deb():
         local('dpkg-sig -k cstbox --sign builder %s' % _get_package_file_name())
 
 
+PPA_KEEP_MULTIPLE_VERSION = False
+
+
 @task
 def update_ppa():
-    execute(publish, repos='ppa')
+    execute(publish, to='ppa')
     execute(sign_deb)
     with lcd(REPOS_PATH['ppa']):
-        local('dpkg-scanpackages -m . /dev/null > Packages')
+        local('dpkg-scanpackages %s . /dev/null > Packages' % ('-m' if PPA_KEEP_MULTIPLE_VERSION else ''))
         local('bzip2 -kf Packages')
         local('apt-ftparchive release . > Release')
         local('gpg --yes -abs -u cstbox -o Release.gpg Release')
