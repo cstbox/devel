@@ -12,10 +12,13 @@ ifndef MODULE_NAME
 $(error MODULE_NAME variable is not defined)
 endif
 
+ARCH?=all
 VERSION?=$(shell grep -e '^Version:' DEBIAN/control | cut -d' ' -f2 | tr -d [:blank:])
 
-DEBPKG_NAME?=cstbox-$(MODULE_NAME)_$(VERSION)_all
+DEBPKG_NAME?=cstbox-$(MODULE_NAME)_$(VERSION)_$(ARCH)
 DEBPKG_LINK?=cstbox-$(MODULE_NAME).deb
+
+DPKGDEB_OPTS?=
 
 # version status (stable or not)
 STABLE?=1
@@ -101,7 +104,7 @@ json_check = python -c "import json;json.load(file('$(1)'))"
 
 dist: prepare
 	@echo '------ creating Debian package...'
-	fakeroot dpkg --build $(BUILD_DIR) $(DEBPKG_FILENAME)
+	fakeroot dpkg-deb $(DPKGDEB_OPTS) --build $(BUILD_DIR) $(DEBPKG_FILENAME)
 	\rm -f $(DEBPKG_LINK)
 	ln -s $(DEBPKG_FILENAME) $(DEBPKG_LINK) 
 
