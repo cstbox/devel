@@ -18,7 +18,7 @@ VERSION?=$(shell grep -e '^Version:' DEBIAN/control | cut -d' ' -f2 | tr -d [:bl
 DEBPKG_NAME?=cstbox-$(MODULE_NAME)_$(VERSION)_$(ARCH)
 DEBPKG_LINK?=cstbox-$(MODULE_NAME).deb
 
-DPKGDEB_OPTS?=
+DPKGDEB_OPTS?=-Zgzip
 
 # version status (stable or not)
 STABLE?=1
