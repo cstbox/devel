@@ -1,5 +1,7 @@
+#! /usr/bin/env python
+
 from subprocess import Popen, PIPE
-import os, sys
+import sys
 
 pyver = sys.version_info
 
