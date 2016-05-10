@@ -32,3 +32,5 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+fabfile-settings.py
+git_version.py-deprecated
