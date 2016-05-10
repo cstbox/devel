@@ -2,38 +2,67 @@
 # -*- coding: utf-8 -*-
 
 import time
-
 import os
+import imp
+
 from fabric.api import local, put, sudo, cd, env, hosts, run, execute, lcd, task
 from fabric.utils import error, abort
 from fabric.colors import blue, green
-from fabric.context_managers import settings
 from fabric.decorators import with_settings
-from fabric.network import ssh
-from fabtools.vagrant import vagrant
-from git_version import git_version
+
+# from git_version import git_version
+import setuptools_scm
 
 __author__ = 'Eric Pascual - CSTB (eric.pascual@cstb.fr)'
 
 _HERE = os.path.dirname(__file__)
 
+EXTRA_SETTINGS = 'fabfile-settings.py'
 REMOTE_TARGET_PACKAGES_DIR = "cstbox-packages/"
 
+local_settings_path = os.path.join(os.getcwd(), EXTRA_SETTINGS)
+shared_settings_path = os.path.join(_HERE, EXTRA_SETTINGS)
+
+extra_hosts = []
+extra_repos = {}
+
+for p in (shared_settings_path, local_settings_path):
+    if os.path.exists(p):
+        context = {
+            "here": _HERE,
+            "remote_target_packages_dir": REMOTE_TARGET_PACKAGES_DIR
+        }
+        settings_module = imp.load_source('fab_settings', p)
+        if hasattr(settings_module, 'hosts'):
+            extra_hosts.extend([tmpl % context for tmpl in settings_module.hosts])
+        if hasattr(settings_module, 'REPOS_PATH'):
+            extra_repos.update({k: v % context for k, v in settings_module.REPOS_PATH.iteritems()})
+
 REPOS_PATH = {
-    'dropbox': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox/"),
-    #'ppa': os.path.expanduser("~/cstbox-workspace/ppa/"),
-    'ppa': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox-apt/"),
+    # 'dropbox': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox/"),
+    # 'ppa': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox-apt/"),
     'vagrant': os.path.join("vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    'vagrant.tydom': os.path.join(_HERE, "app-tydom", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    'vagrant.deltadore': os.path.join(_HERE, "ext-deltadore", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    'vagrant.wsfeed': os.path.join(_HERE, "ext-wsfeed", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    # 'vagrant.tydom': os.path.join(_HERE, "app-tydom", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    # 'vagrant.deltadore': os.path.join(_HERE, "ext-deltadore", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    # 'vagrant.wsfeed': os.path.join(_HERE, "ext-wsfeed", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
 }
 
+if extra_repos:
+    REPOS_PATH.update(extra_repos)
 
 # ssh.util.log_to_file("paramiko.log", 10)
 env.use_ssh_config = True
 env.no_agent = True
-env.hosts = ['cbx-home']
+
+if extra_hosts:
+    if env.hosts is not None:
+        env.hosts.extend(extra_hosts)
+    else:
+        env.hosts = extra_hosts
+
+
+def git_version():
+    return setuptools_scm.get_version(version_scheme='post-release').split('+')[0]
 
 
 def _find_project_root():
@@ -44,7 +73,6 @@ def _find_project_root():
 
 
 def _get_package_name_and_version():
-    name = version = None
     project_root = _find_project_root()
 
     deb_control = os.path.join(project_root, 'DEBIAN/control.template')
@@ -110,7 +138,7 @@ def inc_version(version, inc_major=False, inc_minor=False, inc_build=True):
 
 
 @task
-def inc_version_build():
+def inc_build_num():
     """ Increase the build number in package version number """
     name, version = _get_package_name_and_version()
     local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(version)})
@@ -185,7 +213,7 @@ def make_deb_control():
 
 
 @task
-def build_deb():
+def make_deb():
     """ Generates the Debian package """
     with lcd(_find_project_root()):
         if os.path.exists(os.path.join('DEBIAN', 'control.template')):
@@ -198,7 +226,7 @@ def build_deb():
 
 
 @task
-def build_arch():
+def make_arch():
     """ Generates a deployable archive of the package """
     new_version = git_version()
     with lcd(_find_project_root()):
@@ -261,6 +289,8 @@ def update_ppa():
         local('apt-ftparchive release . > Release')
         local('gpg --yes -abs -u cstbox -o Release.gpg Release')
 
+        local('rsync -Car --progress . sop-iis-private:/var/www/ppa')
+
 
 @hosts('tydom')
 @with_settings(user='root', password='root')
@@ -299,7 +329,7 @@ def tydom_cbx_restart():
 @task
 def tydom_all():
     """ Builds, deploys and installs a package on a connected Tydom """
-    execute(build_arch)
+    execute(make_arch)
     execute(tydom_deploy)
     execute(tydom_install)
     execute(tydom_cbx_restart)
