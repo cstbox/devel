@@ -121,7 +121,6 @@ def _version_fields(version):
 
 
 def inc_version(version, inc_major=False, inc_minor=False, inc_build=True):
-    name, version = _get_package_name_and_version()
     major, minor, build = _version_fields(version)
     if inc_major:
         major += 1
@@ -137,25 +136,22 @@ def inc_version(version, inc_major=False, inc_minor=False, inc_build=True):
     return '.'.join((str(n) for n in (major, minor, build)))
 
 
-@task
+@task(aliases=["inc_patch", "inc_version_patch", "inc_version_build"])
 def inc_build_num():
     """ Increase the build number in package version number """
-    name, version = _get_package_name_and_version()
-    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(version)})
+    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(git_version())})
 
 
-@task
+@task(alias="inc_minor")
 def inc_version_minor():
     """ Increase the minor number in package version number """
-    name, version = _get_package_name_and_version()
-    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(version, inc_minor=True)})
+    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(git_version(), inc_minor=True)})
 
 
-@task
+@task(alias="inc_major")
 def inc_version_major():
     """ Increase the major number in package version number """
-    name, version = _get_package_name_and_version()
-    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(version, inc_major=True)})
+    local('git tag -a -m "%(version_str)s" %(version_str)s' % {'version_str': inc_version(git_version(), inc_major=True)})
 
 
 @task
@@ -212,7 +208,7 @@ def make_deb_control():
         print(green('%s version field updated to "%s"' % (control_path, new_version)))
 
 
-@task
+@task(alias="deb")
 def make_deb():
     """ Generates the Debian package """
     with lcd(_find_project_root()):
@@ -225,13 +221,20 @@ def make_deb():
         local('make clean_build  dist')
 
 
-@task
+@task(alias="arch")
 def make_arch():
     """ Generates a deployable archive of the package """
     new_version = git_version()
     with lcd(_find_project_root()):
         execute(update__version__)
         local('VERSION=%s make clean_build arch' % new_version)
+
+
+@task(alias="wheel")
+def make_wheel():
+    """ Generates a wheel of the package """
+    with lcd(_find_project_root()):
+        local('python setup.py bdist_wheel')
 
 
 @task
@@ -278,7 +281,7 @@ def sign_deb():
 PPA_KEEP_MULTIPLE_VERSION = False
 
 
-@task
+@task(alias='ppa')
 def update_ppa():
     """ Updates the PPA with the most recent package version"""
     execute(publish, to='ppa')
@@ -288,6 +291,7 @@ def update_ppa():
         local('bzip2 -kf Packages')
         local('apt-ftparchive release . > Release')
         local('gpg --yes -abs -u cstbox -o Release.gpg Release')
+        local('chmod g-w Release* Packages*')
 
         local('rsync -Car --progress . sop-iis-private:/var/www/ppa')
 
