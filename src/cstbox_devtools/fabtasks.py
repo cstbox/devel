@@ -3,9 +3,9 @@
 
 import time
 import os
-import imp
 
 from fabric.api import local, put, sudo, cd, env, hosts, run, execute, lcd, task
+from fabric.context_managers import settings
 from fabric.utils import error, abort
 from fabric.colors import blue, green
 from fabric.decorators import with_settings
@@ -17,48 +17,50 @@ __author__ = 'Eric Pascual - CSTB (eric.pascual@cstb.fr)'
 
 _HERE = os.path.dirname(__file__)
 
-EXTRA_SETTINGS = 'fabfile-settings.py'
+# EXTRA_SETTINGS = 'fabfile-settings.py'
 REMOTE_TARGET_PACKAGES_DIR = "cstbox-packages/"
 
-local_settings_path = os.path.join(os.getcwd(), EXTRA_SETTINGS)
-shared_settings_path = os.path.join(_HERE, EXTRA_SETTINGS)
+# local_settings_path = os.path.join(os.getcwd(), EXTRA_SETTINGS)
+# shared_settings_path = os.path.join(_HERE, EXTRA_SETTINGS)
+#
+# extra_hosts = []
+# extra_repos = {}
 
-extra_hosts = []
-extra_repos = {}
-
-for p in (shared_settings_path, local_settings_path):
-    if os.path.exists(p):
-        context = {
-            "here": _HERE,
-            "remote_target_packages_dir": REMOTE_TARGET_PACKAGES_DIR
-        }
-        settings_module = imp.load_source('fab_settings', p)
-        if hasattr(settings_module, 'hosts'):
-            extra_hosts.extend([tmpl % context for tmpl in settings_module.hosts])
-        if hasattr(settings_module, 'REPOS_PATH'):
-            extra_repos.update({k: v % context for k, v in settings_module.REPOS_PATH.iteritems()})
-
+LOCAL_REPOS_ROOT = os.path.expanduser("~/cstbox-workspace/ppa/")
 REPOS_PATH = {
     # 'dropbox': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox/"),
-    # 'ppa': os.path.expanduser("~/Dropbox-private/Dropbox/cstbox-apt/"),
-    'vagrant': os.path.join("vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    # 'vagrant.tydom': os.path.join(_HERE, "app-tydom", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    # 'vagrant.deltadore': os.path.join(_HERE, "ext-deltadore", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
-    # 'vagrant.wsfeed': os.path.join(_HERE, "ext-wsfeed", "vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    # 'ppa': os.path.expanduser("~/cstbox-workspace/ppa/"),
+    # 'vagrant': os.path.join("vagrant", REMOTE_TARGET_PACKAGES_DIR),
+    # 'vagrant.tydom': os.path.join('%(here)s', "app-tydom", "vagrant", "%(remote_target_packages_dir)s"),
+    # 'vagrant.deltadore': os.path.join('%(here)s', "ext-deltadore", "vagrant", "%(remote_target_packages_dir)s"),
+    # 'vagrant.wsfeed': os.path.join('%(here)s', "ext-wsfeed", "vagrant", "%(remote_target_packages_dir)s"),
 }
 
-if extra_repos:
-    REPOS_PATH.update(extra_repos)
+
+# for p in (shared_settings_path, local_settings_path):
+#     if os.path.exists(p):
+#         context = {
+#             "here": _HERE,
+#             "remote_target_packages_dir": REMOTE_TARGET_PACKAGES_DIR
+#         }
+#         settings_module = imp.load_source('fab_settings', p)
+#         if hasattr(settings_module, 'hosts'):
+#             extra_hosts.extend([tmpl % context for tmpl in settings_module.hosts])
+#         if hasattr(settings_module, 'REPOS_PATH'):
+#             extra_repos.update({k: v % context for k, v in settings_module.REPOS_PATH.iteritems()})
+#
+# if extra_repos:
+#     REPOS_PATH.update(extra_repos)
 
 # ssh.util.log_to_file("paramiko.log", 10)
 env.use_ssh_config = True
 env.no_agent = True
 
-if extra_hosts:
-    if env.hosts is not None:
-        env.hosts.extend(extra_hosts)
-    else:
-        env.hosts = extra_hosts
+# if extra_hosts:
+#     if env.hosts is not None:
+#         env.hosts.extend(extra_hosts)
+#     else:
+#         env.hosts = extra_hosts
 
 
 def git_version():
@@ -278,22 +280,36 @@ def sign_deb():
         local('dpkg-sig -k cstbox --sign builder %s' % _get_package_file_name())
 
 
-PPA_KEEP_MULTIPLE_VERSION = False
+PPA_NAME = None
+VISIBLE_ON_PUBLIC_SERVER = False
+PPA_KEEP_MULTIPLE_VERSION = True
+
+PPA_DIR_PATH = "/var/www/cstbox-ppa/"
 
 
-@task(alias='ppa')
-def update_ppa():
+def do_update_ppa(ppa_name=None, local_only=True):
     """ Updates the PPA with the most recent package version"""
+    if not ppa_name:
+        abort("ppa_name not defined. Cannot proceed.")
+
     execute(publish, to='ppa')
     execute(sign_deb)
     with lcd(REPOS_PATH['ppa']):
-        local('dpkg-scanpackages %s . /dev/null > Packages' % ('-m' if PPA_KEEP_MULTIPLE_VERSION else ''))
-        local('bzip2 -kf Packages')
+        scanpkg_opt = '-m' if PPA_KEEP_MULTIPLE_VERSION else ''
+        local('dpkg-scanpackages %s . /dev/null > Packages' % scanpkg_opt)
+        local('gzip -9ck Packages > Packages.gz')
         local('apt-ftparchive release . > Release')
         local('gpg --yes -abs -u cstbox -o Release.gpg Release')
         local('chmod g-w Release* Packages*')
 
-        local('rsync -Car --progress . sop-iis-private:/var/www/ppa')
+    if not local_only:
+        with lcd(LOCAL_REPOS_ROOT):
+            cmde = './update-server-ppa.sh %s %s'
+            with settings(warn_only=True):
+                local(cmde % (ppa_name, 'private'))
+            if VISIBLE_ON_PUBLIC_SERVER or ppa_name == 'public':
+                with settings(warn_only=True):
+                    local(cmde % (ppa_name, 'public'))
 
 
 @hosts('tydom')
