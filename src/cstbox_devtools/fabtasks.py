@@ -3,6 +3,8 @@
 
 import time
 import os
+import re
+import shutil
 
 from fabric.api import local, put, sudo, cd, env, hosts, run, execute, lcd, task
 from fabric.context_managers import settings
@@ -256,7 +258,7 @@ def install(name=''):
 
 
 @task
-def publish(to='vagrant'):
+def publish(to='vagrant', addit_copy_func=None):
     """ Copies the Debian package to a repository (parms: to=vagrant) """
     try:
         project_root = _find_project_root()
@@ -267,6 +269,8 @@ def publish(to='vagrant'):
         if os.path.isfile(pkg_fn):
             try:
                 local('cp -a %s %s' % (pkg_fn, REPOS_PATH[to]))
+                if addit_copy_func:
+                    addit_copy_func(pkg_fn, REPOS_PATH[to])
             except KeyError:
                 error('repository "%s" does not exist' % to)
         else:
@@ -287,12 +291,12 @@ PPA_KEEP_MULTIPLE_VERSION = True
 PPA_DIR_PATH = "/var/www/cstbox-ppa/"
 
 
-def do_update_ppa(ppa_name=None, local_only=True):
+def do_update_ppa(ppa_name=None, local_only=True, addit_copy_func=None):
     """ Updates the PPA with the most recent package version"""
     if not ppa_name:
         abort("ppa_name not defined. Cannot proceed.")
 
-    execute(publish, to='ppa')
+    execute(publish, to='ppa', addit_copy_func=addit_copy_func)
     execute(sign_deb)
     with lcd(REPOS_PATH['ppa']):
         scanpkg_opt = '-m' if PPA_KEEP_MULTIPLE_VERSION else ''
@@ -373,3 +377,27 @@ def doc(output_format='html', clean=False):
     with lcd(doc_subdir):
         clean_opt = 'clean' if clean else ''
         local("make %s %s" % (clean_opt, output_format))
+
+
+@task()
+def deb_clean():
+    """ Removes generated distributions but the latest one """
+    project_root = _find_project_root()
+    pkg_name, version = _get_package_name_and_version()
+    pkg_re = re.compile(r'^%s_.+all.*' % pkg_name)
+    last_version_root_name = os.path.splitext(_get_package_file_name())[0]
+    print("Keeping latest version : " + last_version_root_name)
+    cnt = 0
+    for name in os.listdir(project_root):
+        if pkg_re.match(name) and not name.startswith(last_version_root_name):
+            cnt += 1
+            abspath = os.path.join(project_root, name)
+            if os.path.isdir(abspath):
+                shutil.rmtree(abspath)
+            else:
+                os.remove(abspath)
+    if cnt:
+        print("... %d obsolete package(s) removed." % (cnt / 2))
+    else:
+        print("... no obsolete package found.")
+
