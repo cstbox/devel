@@ -32,7 +32,10 @@ DEBPKG_FILENAME=$(DEBPKG_NAME)$(SUFFIX).deb
 ARCH_FILENAME=$(DEBPKG_NAME)$(SUFFIX).tgz
 
 # build directory location
-BUILD_DIR=$(DEBPKG_NAME)
+BUILD_DIR=build/$(DEBPKG_NAME)
+
+# dist directory
+DIST_DIR=dist
 
 # prepare stage customization
 # Override this in derived Makefiles to add stuff after the default prepare sequence.
@@ -104,9 +107,9 @@ json_check = python -c "import json;json.load(file('$(1)'))"
 
 dist: prepare
 	@echo '------ creating Debian package...'
-	fakeroot dpkg-deb $(DPKGDEB_OPTS) --build $(BUILD_DIR) $(DEBPKG_FILENAME)
+	fakeroot dpkg-deb $(DPKGDEB_OPTS) --build $(BUILD_DIR) $(DIST_DIR)/$(DEBPKG_FILENAME)
 	\rm -f $(DEBPKG_LINK)
-	ln -s $(DEBPKG_FILENAME) $(DEBPKG_LINK) 
+	ln -s $(DIST_DIR)/$(DEBPKG_FILENAME) $(DEBPKG_LINK)
 
 arch: prepare
 	@echo '------ creating compressed archive...'
@@ -123,8 +126,9 @@ css:
 	find . -name "*.scss" -exec bash -c 'sass $$1 -o $${1/.po/.mo}' - {} $\\;
 
 make_build_dir:
-	@echo '------ creating dist build directories...'
+	@echo '------ creating build and dist directories...'
 	mkdir -p $(BUILD_DIR)
+	mkdir -p $(DIST_DIR)
 
 make_extra_dirs:
 # overridden by Makefiles to add their own directories if needed
