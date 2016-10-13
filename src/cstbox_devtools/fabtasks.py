@@ -29,6 +29,7 @@ REPOS_PATH = {
 
 env.use_ssh_config = True
 env.no_agent = True
+env.arch = env.get('arch', 'all')
 
 
 def git_version():
@@ -70,12 +71,12 @@ def _get_package_name_and_version():
 
 def _get_package_file_name():
     name, version = _get_package_name_and_version()
-    return '%s_%s_all.deb' % (name, version)
+    return '%s_%s_%s.deb' % (name, version, env.arch)
 
 
 def _get_package_arch_name():
     name, version = _get_package_name_and_version()
-    return '%s_%s_all.tgz' % (name, version)
+    return '%s_%s_%s.tgz' % (name, version, env.arch)
 
 
 def _get_debian_control_path():
@@ -104,6 +105,11 @@ def inc_version(version, inc_major=False, inc_minor=False, inc_build=True):
         return version
 
     return '.'.join((str(n) for n in (major, minor, build)))
+
+
+@task
+def version():
+    print(git_version())
 
 
 @task(aliases=["inc_patch", "inc_version_patch", "inc_version_build"])
@@ -174,8 +180,12 @@ def make_deb_control():
         control_path = os.path.join(project_root, 'DEBIAN', 'control')
         template_path = control_path + '.template'
         lines = file(template_path).readlines()
-        file(control_path, 'wt').writelines(''.join(lines) % {'version': new_version})
+        file(control_path, 'wt').writelines(''.join(lines) % {
+            'version': new_version,
+            'arch': env.arch
+        })
         print(green('%s version field updated to "%s"' % (control_path, new_version)))
+        print(green('%s arch field set to "%s"' % (control_path, env.arch)))
 
 
 @task(alias="deb")
@@ -188,7 +198,7 @@ def make_deb():
             execute(update_deb_version)
 
         execute(update__version__)
-        local('make clean_build  dist')
+        local('ARCH=%s make clean_build dist' % env.arch)
 
 
 @task(alias="arch")
@@ -276,7 +286,7 @@ def tydom_deploy():
     local('scp -r %s root@tydom:%s' % (os.path.join(project_root, arch_name), REMOTE_TARGET_PACKAGES_DIR))
 
 
-def do_update_ppa(ppa_name=None, local_only=True, addit_copy_func=None):
+def do_update_ppa(ppa_name=None, ppa_servers=None, addit_copy_func=None):
     """ Updates the PPA with the most recent package version"""
     if not ppa_name:
         abort("ppa_name not defined. Cannot proceed.")
@@ -291,14 +301,14 @@ def do_update_ppa(ppa_name=None, local_only=True, addit_copy_func=None):
         local('gpg --yes -abs -u cstbox -o Release.gpg Release')
         local('chmod g-w Release* Packages*')
 
-    if not local_only:
-        with lcd(LOCAL_REPOS_ROOT):
-            cmde = './update-server-ppa.sh %s %s'
-            with settings(warn_only=True):
-                local(cmde % (ppa_name, 'private'))
-            if VISIBLE_ON_PUBLIC_SERVER or ppa_name == 'public':
-                with settings(warn_only=True):
-                    local(cmde % (ppa_name, 'public'))
+    if ppa_servers:
+        for server in list(ppa_servers):
+            if server in ('public', 'private'):
+                with lcd(LOCAL_REPOS_ROOT):
+                    cmde = './update-server-ppa.sh %s %s'
+                    local(cmde % (ppa_name, server))
+            else:
+                abort('invalid server : %s' % server)
 
 
 @hosts('tydom')
@@ -392,8 +402,8 @@ def vagrant_updpkg():
     for f in glob.glob(vagrant_pkgs_dir + '/*.deb'):
         os.path.join(vagrant_pkgs_dir, f)
 
-    pkg_install_script = os.path.join(vagrant_dir, 'install-packages.sh')
-    with open(pkg_list_file) as fp, open(pkg_install_script, 'w') as fp_out:
+    pkg_files_list = []
+    with open(pkg_list_file) as fp:
         for rec in fp:
             rec = rec.strip()
             if not rec:
@@ -404,12 +414,17 @@ def vagrant_updpkg():
             _, short_name = pkg_name.split('-', 1)
             src_dist_dir = os.path.join(os.path.dirname(project_root), short_name, 'dist')
             if version != '*':
-                src_deb_path = os.path.join(src_dist_dir, "%s_%s_all.deb" % (pkg_name, version))
+                src_deb_path = os.path.join(src_dist_dir, "%s_%s_%s.deb" % (pkg_name, version, env.arch))
             else:
                 src_deb_path = os.path.join(src_dist_dir, "%s.deb" % pkg_name)
 
             if os.path.exists(src_deb_path):
                 subprocess.call('cp -aL %s %s' % (src_deb_path, vagrant_pkgs_dir), shell=True)
-                fp_out.write("dpkg -i /vagrant/cstbox-packages/%s\n" % os.path.basename(src_deb_path))
+                pkg_files_list.append(os.path.basename(src_deb_path))
             else:
-                print('ERROR: file not found (%s)' % src_deb_path)
+                abort('ERROR: package file not found (%s)' % src_deb_path)
+
+    pkg_install_script = os.path.join(vagrant_dir, 'install-packages.sh')
+    with open(pkg_install_script, 'w') as fp:
+        fp.write("dpkg -i " + ' '.join(["/vagrant/cstbox-packages/" + p for p in pkg_files_list]) + '\n')
+
