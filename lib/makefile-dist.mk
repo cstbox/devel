@@ -108,14 +108,18 @@ json_check = python -c "import json;json.load(file('$(1)'))"
 dist: prepare
 	@echo '------ creating Debian package...'
 	fakeroot dpkg-deb $(DPKGDEB_OPTS) --build $(BUILD_DIR) $(DIST_DIR)/$(DEBPKG_FILENAME)
-	\rm -f $(DEBPKG_LINK)
-	ln -s $(DIST_DIR)/$(DEBPKG_FILENAME) $(DEBPKG_LINK)
+	\rm -f $(DIST_DIR)/$(DEBPKG_LINK)
+	(cd $(DIST_DIR) && ln -s $(DEBPKG_FILENAME) $(DEBPKG_LINK))
 
 arch: prepare
 	@echo '------ creating compressed archive...'
 	tar czf $(ARCH_FILENAME) -C $(BUILD_DIR) --exclude=DEBIAN .
 
-prepare: i18n make_build_dir make_extra_dirs copy_dpkg_build_files copy_files update_version_info $(EXTRA_PREPARE_STEPS)
+prepare: i18n \
+    make_build_dir make_extra_dirs \
+    copy_dpkg_build_files copy_files \
+    cleanup_excluded_files update_version_info \
+    $(EXTRA_PREPARE_STEPS)
 
 i18n: 
 	@echo '------ compiling message files...'
@@ -189,6 +193,7 @@ copy_python_files:
 	    --exclude "*" \
 	    $(LIB_FROM)/python/pycstbox $(BUILD_DIR)/$(CSTBOX_PACKAGES_INSTALL_DIR)
 
+cleanup_excluded_files:
 # Remove extra __init__.py used to mark merged packages in the IDE.
 #
 # Projects can add modules to the packages defined by the core architecture, for
@@ -203,9 +208,8 @@ copy_python_files:
 # NOTE: it would be cleaner to find a way to exclude them from the above rsync,
 # but since the rules can be content based, this is not feasible. By the way, doing this
 # this way allow to perform any complex processing here.
-
-	@echo "------ removing 'IDE compliance' __init__.py"
-	for f in $$(grep -R -l EXCLUDE_FROM_DIST $(BUILD_DIR)) ; do \rm $$f ; done
+	@echo "------ cleaning up excluded files"
+	for f in $$(grep -R -l EXCLUDE_FROM_DIST $(BUILD_DIR)) ; do /bin/rm $$f ; done
 
 copy_python_support_pkgs:
 	@echo '------ copying additional Python support packages...'
