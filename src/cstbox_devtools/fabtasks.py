@@ -220,7 +220,11 @@ def make_wheel():
 @task
 def deploy():
     """ Deploys the Debian package to the target """
-    put(_get_package_file_name(), REMOTE_TARGET_PACKAGES_DIR)
+    pkg_fn = _get_package_file_name()
+    if not os.path.exists(pkg_fn):
+        pkg_fn = os.path.join('dist', pkg_fn)
+
+    put(pkg_fn, REMOTE_TARGET_PACKAGES_DIR)
 
 
 @task
